@@ -2,7 +2,7 @@
 
 独立检索 Asser Institute 的 International Crimes Database（ICD）。只访问 `internationalcrimesdatabase.org`。
 
-仓库：<https://github.com/GDUFSICCSkills/ICDSearcher>（私有）。
+仓库：<https://github.com/HuiwowICCSkills/ICDSearcher>（私有）。
 
 ## 1. 环境
 
@@ -11,7 +11,7 @@ Python 3.10+，依赖 `requests`、`beautifulsoup4`、`pypdf`；无需浏览器�
 ## 2. 安装
 
 ```powershell
-git clone https://github.com/GDUFSICCSkills/ICDSearcher.git "$env:USERPROFILE\.codex\skills\ICDSearcher"
+git clone https://github.com/HuiwowICCSkills/ICDSearcher.git "$env:USERPROFILE\.codex\skills\ICDSearcher"
 python -m pip install -r "$env:USERPROFILE\.codex\skills\ICDSearcher\requirements.txt"
 ```
 
