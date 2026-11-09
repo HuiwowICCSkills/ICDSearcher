@@ -40,3 +40,22 @@ $icd = "$env:USERPROFILE\.codex\skills\ICDSearcher\run.ps1"
 ## 6. 边界
 
 ICD 是案件数据库，详情页可能只是案件介绍；判决全文在链接的另一端。引用前读取原始判决，不要把 ICD 摘要当裁判理由。
+
+## 实测效果（2026-11-09）
+
+以下命令与结果来自本机 `~/.codex/skills/ICDSearcher` 的实网运行；检索日期 2026-11-09（Asia/Shanghai），输出为该次运行实际返回的 JSON 报告。
+
+```powershell
+& .\run.ps1 search 'genocide' --limit 5
+```
+
+- 状态：`ok`；服务端/索引报告 `total = 224`；本次返回 5 条。
+- 代表性结果：
+
+| 题名 | 类型 / 日期 | 链接 |
+| --- | --- | --- |
+| Bugingo : Public Prosecutor v. Sadi Bugingo | retrieved_metadata；14 Feb 2013 | https://www.internationalcrimesdatabase.org/Case/919 |
+| Basebya : The Prosecutor v. Yvonne Basebya | retrieved_metadata；1 Mar 2013 | https://www.internationalcrimesdatabase.org/Case/971 |
+| Ríos Montt : Rigoberta Menchu et al. v Ríos Montt et al. | retrieved_metadata；20 May 2013 | https://www.internationalcrimesdatabase.org/Case/948 |
+
+> 说明：`total = 224` 是 ICD 站点对 `genocide` 的命中数（`scope`：Asser Institute 的 International Crimes Database 公开案件检索，站点固定每页 5 条、按相关度排序，`pagination.pages = 45`），不是判决数量。返回结果均为案件元数据与摘要片段（`result_type = retrieved_metadata`），`content_scope` 明确写明"ICD search result; the detail page and any linked judgment must be fetched separately"。因此本段只能证明检索通道可用、命中与元数据正确；判决全文须用 `fetch` 另行读取原文，引用前不得把 ICD 摘要当作裁判理由。
