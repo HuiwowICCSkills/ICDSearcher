@@ -2,7 +2,7 @@
 
 独立检索 Asser Institute 的 International Crimes Database（ICD）。只访问 `internationalcrimesdatabase.org`。
 
-仓库：<https://github.com/HuiwowICCSkills/ICDSearcher>（私有）。
+仓库：<https://github.com/HuiwowICCSkills/ICDSearcher>（公开）。
 
 ## 1. 环境
 
