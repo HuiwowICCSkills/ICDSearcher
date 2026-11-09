@@ -1,0 +1,4 @@
+interface:
+  display_name: "International Crimes Database 检索"
+  short_description: "检索 Asser Institute 的国际犯罪案件数据库"
+  default_prompt: "使用 $ICDSearcher 检索 ICD；报告案名、citation、摘要片段、详情页链接，并说明是否使用了词项交集回退。"
