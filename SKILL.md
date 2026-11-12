@@ -17,6 +17,10 @@ description: 独立检索 Asser Institute 的 International Crimes Database（IC
 
 ```powershell
 & '<skill-dir>/run.ps1' search 'genocide' --limit 10 --out './icd-search.json'
+
+# Advanced Case Search：罪名类别 + 年份范围（站点自身的 AdvancedSearch 参数）
+& '<skill-dir>/run.ps1' search 'genocide' --category genocide --year-from 2000 --year-to 2020 --limit 10
+
 & '<skill-dir>/run.ps1' search 'command responsibility' --limit 5 --no-term-fallback
 & '<skill-dir>/run.ps1' fetch 'https://www.internationalcrimesdatabase.org/Case/919' --out './icd-case.json' --text-out './icd-case.txt'
 & '<skill-dir>/run.ps1' doctor
@@ -27,6 +31,7 @@ description: 独立检索 Asser Institute 的 International Crimes Database（IC
 ## 结果边界
 
 - ICD 搜索结果是**案件检索页**：案名、citation 和摘要片段，不是判决全文；详情页也可能只是案件介绍，真正的判决 PDF 在链接的另一端。
+- `--category` 可重复，支持 `genocide`、`war crimes`、`crimes against humanity`、`aggression`、`torture`、`piracy`、`terrorism` 或数字 ID `1/2/3/4/5/6/10`；`--year-from`/`--year-to` 是案件年份边界。它们对应站点 `AdvancedSearch` 的 `cat`、`fy`、`ty` 参数（`cat` 为逗号分隔）。
 - ICD 的 ASP.NET 前端对某些含 `command + 空格 + 词` 的短语会返回 Azure 前端 403。适配器会改为逐词检索并取交集，结果标为 `icd-token-intersection`，这是**有界近似**，不是站点自身的短语排序；`--no-term-fallback` 可关闭。
 - 每页固定 5 条，适配器最多抓取 20 页；`total` 来自页面标题的 “N results”，不是已抓取条数。
 - `status=error` 或 403 只是本次请求受限，不等于 ICD 没有相关资料。

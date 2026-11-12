@@ -20,6 +20,16 @@ FETCH_TIMEOUT_DEFAULT = 300
 SEARCH_URL = "https://www.internationalcrimesdatabase.org/SearchResults/"
 PAGE_SIZE = 5
 FALLBACK_PAGES = 6
+CATEGORIES = {
+    "genocide": "1",
+    "war crimes": "2",
+    "crimes against humanity": "3",
+    "crime of aggression": "4",
+    "aggression": "4",
+    "torture": "5",
+    "piracy": "6",
+    "terrorism": "10",
+}
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -49,6 +59,18 @@ def add_search_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--limit", type=int, default=10, help="1..50 (default 10)")
     parser.add_argument("--offset", type=int, default=0, help=">= 0 (default 0)")
     parser.add_argument(
+        "--category",
+        action="append",
+        default=[],
+        help=(
+            "ICD crime category, repeatable: genocide, 'war crimes', "
+            "'crimes against humanity', aggression, torture, piracy, terrorism, "
+            "or the numeric id 1/2/3/4/5/6/10"
+        ),
+    )
+    parser.add_argument("--year-from", dest="year_from", help="Earliest case year (advanced search)")
+    parser.add_argument("--year-to", dest="year_to", help="Latest case year (advanced search)")
+    parser.add_argument(
         "--no-term-fallback",
         action="store_true",
         help="Do not retry a blocked phrase as a term-by-term intersection",
@@ -59,8 +81,44 @@ def add_fetch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--text-out", help="Write extracted page text here")
 
 
-def _results_page(http: HTTP, query: str, page: int) -> tuple[list[dict[str, Any]], int, int]:
-    soup, meta = http.soup(SEARCH_URL, {"q": query, "p": str(page)}, headers=_headers())
+def _category_ids(values: list[str]) -> list[str]:
+    ids: list[str] = []
+    for value in values:
+        key = str(value).strip().casefold()
+        if key.isdigit():
+            ids.append(key)
+        elif key in CATEGORIES:
+            ids.append(CATEGORIES[key])
+        else:
+            raise ValueError(
+                "Unknown ICD category "
+                + repr(value)
+                + "; use one of "
+                + ", ".join(sorted(CATEGORIES))
+            )
+    return list(dict.fromkeys(ids))
+
+
+def _filters(args: argparse.Namespace) -> dict[str, str]:
+    result: dict[str, str] = {}
+    categories = _category_ids(getattr(args, "category", []) or [])
+    if categories:
+        result["cat"] = ",".join(categories)
+        result["a"] = "1"
+    if getattr(args, "year_from", None):
+        result["fy"] = str(args.year_from)
+        result["a"] = "1"
+    if getattr(args, "year_to", None):
+        result["ty"] = str(args.year_to)
+        result["a"] = "1"
+    return result
+
+
+def _results_page(
+    http: HTTP, query: str, page: int, filters: dict[str, str] | None = None
+) -> tuple[list[dict[str, Any]], int, int]:
+    params = {"q": query, "p": str(page), **(filters or {})}
+    soup, meta = http.soup(SEARCH_URL, params, headers=_headers())
     block = soup.select_one("div.search-results")
     if block is None:
         raise RetrievalError(
@@ -114,7 +172,13 @@ def _results_page(http: HTTP, query: str, page: int) -> tuple[list[dict[str, Any
     return rows, total, pages
 
 
-def _search_phrase(http: HTTP, query: str, limit: int, offset: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _search_phrase(
+    http: HTTP,
+    query: str,
+    limit: int,
+    offset: int,
+    filters: dict[str, str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base = (offset // PAGE_SIZE) * PAGE_SIZE
     page = base // PAGE_SIZE + 1
     end = offset + limit
@@ -122,7 +186,7 @@ def _search_phrase(http: HTTP, query: str, limit: int, offset: int) -> tuple[lis
     total = pages = None
     fetched = 0
     while (page - 1) * PAGE_SIZE < end and fetched < 20:
-        batch, total, pages = _results_page(http, query, page)
+        batch, total, pages = _results_page(http, query, page, filters)
         rows.extend(batch)
         fetched += 1
         if not batch or (pages and page >= pages):
@@ -142,7 +206,13 @@ def _search_phrase(http: HTTP, query: str, limit: int, offset: int) -> tuple[lis
     }
 
 
-def _token_fallback(http: HTTP, query: str, limit: int, offset: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _token_fallback(
+    http: HTTP,
+    query: str,
+    limit: int,
+    offset: int,
+    filters: dict[str, str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     tokens = list(dict.fromkeys(terms(query)))[:4]
     if len(tokens) < 2:
         raise RetrievalError("ICD phrase rejected but no multi-term fallback applies: " + query)
@@ -150,7 +220,7 @@ def _token_fallback(http: HTTP, query: str, limit: int, offset: int) -> tuple[li
     for token in tokens:
         seen: dict[str, dict[str, Any]] = {}
         for page in range(1, FALLBACK_PAGES + 1):
-            batch, total, pages = _results_page(http, token, page)
+            batch, total, pages = _results_page(http, token, page, filters)
             if not batch:
                 break
             for row in batch:
@@ -187,26 +257,29 @@ def search(query: str, args: argparse.Namespace, http: HTTP) -> dict[str, Any]:
     if args.offset < 0:
         raise ValueError("offset must be >= 0")
     warnings: list[str] = []
+    filters = _filters(args)
     try:
-        rows, pagination = _search_phrase(http, query, args.limit, args.offset)
+        rows, pagination = _search_phrase(http, query, args.limit, args.offset, filters)
         via = "icd-search"
     except RetrievalError as exc:
         if args.no_term_fallback:
             raise
         warnings.append("ICD phrase search failed; using bounded term intersection: " + str(exc))
-        rows, pagination = _token_fallback(http, query, args.limit, args.offset)
+        rows, pagination = _token_fallback(http, query, args.limit, args.offset, filters)
         via = "icd-token-intersection"
     total = pagination.get("total")
     return {
         "status": "ok" if rows or total == 0 else "no-results-in-queried-index",
         "query": query,
+        "filters": filters,
         "total": total,
         "results": rows,
         "pagination": pagination,
         "warnings": warnings,
         "scope": (
             "International Crimes Database (Asser Institute) public case search; "
-            "five rows per page and relevance-ranked"
+            "five rows per page and relevance-ranked; category and year filters use "
+            "the site's AdvancedSearch parameters"
         ),
         "evidence": http.evidence,
     }

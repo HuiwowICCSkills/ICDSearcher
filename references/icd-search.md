@@ -24,3 +24,17 @@
 ## 边界
 
 `total` 来自结果页标题，不是已抓取数；ICD 摘要不是判决理由。
+
+## Advanced Case Search（2026-11-12 浏览器核对）
+
+页面：`https://www.internationalcrimesdatabase.org/AdvancedSearch`。提交后落在
+`https://www.internationalcrimesdatabase.org/SearchResults/?q=<词>&cat=<id,...>&fy=<年>&ty=<年>&a=1`。
+
+| 参数 | 含义 | 值 |
+| --- | --- | --- |
+| `q` | 检索词 | 任意关键词 |
+| `cat` | 罪名类别，逗号分隔 | `1` genocide，`2` war crimes，`3` crimes against humanity，`4` crime of aggression，`5` torture，`6` piracy，`10` terrorism |
+| `fy` / `ty` | 年份起止 | 四位年份 |
+| `a` | 高级检索标记 | `1` |
+
+实测 `q=genocide` → 224 条；`q=genocide&cat=1,3&fy=2000&ty=2020` → 171 条。高级表单本身对 `command responsibility` 仍会被 Azure Application Gateway 以 403 拦截，浏览器和 `requests` 都一样；这是站点前门策略，不是零结果。
